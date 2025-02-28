@@ -62,6 +62,7 @@ def convert_excel_to_json(excel_file_path):
 
                         # Если первая строка не пустая, создаем первый уровень вложенности
                         if level1:
+                            level1 = f"ОБЩКОНТРТОЧКА {level2}"
                             if level1 not in current_level:
                                 current_level[level1] = {}
                             current_level = current_level[level1]

@@ -11,7 +11,7 @@ def convert_excel_to_json(excel_file_path):
     directory = os.path.dirname(excel_file_path)
 
     # Проверка наличия папки ДСТИИ и создание, если она не существует
-    file_directory = os.path.join(directory, 'МФР')
+    file_directory = os.path.join(directory, 'ДГП')
     if not os.path.exists(file_directory):
         os.makedirs(file_directory)
 

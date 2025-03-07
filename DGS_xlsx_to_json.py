@@ -271,6 +271,16 @@ def convert_excel_to_json(excel_file_path):
                     if column in df.columns and column in df_plan.columns:
                         df[column] = df_plan[column]
 
+            # Обработка листа "4 - ОИВ план"
+            if sheet_name == "4 - ОИВ план":
+                # Проверка наличия нужных колонок
+                if 'Плановый ввод по директивному графику' in df.columns and 'Плановый ввод по договору' in df.columns:
+                    # Заполнение пустых значений в колонке "Плановый ввод по директивному графику"
+                    df['Плановый ввод по директивному графику'] = df.apply(
+                        lambda row: row['Плановый ввод по договору'] if pd.isna(row['Плановый ввод по директивному графику']) else row['Плановый ввод по директивному графику'],
+                        axis=1
+                    )
+
             # Удаление колонок с комментариями, титулами и годами титулов
             df = df.loc[:, ~df.columns.str.contains('комментарий|титул|год титула', case=False)]
 
@@ -322,4 +332,4 @@ def convert_excel_to_json(excel_file_path):
             print(f'Лист "{sheet_name}" успешно конвертирован в файл "{json_file_path}".')
 
 # Пример использования
-convert_excel_to_json('E://Загрузки//Telegram Desktop//ДГС итоговый перечень для ДБ в3.1.xlsx')
+convert_excel_to_json('E://Загрузки//Telegram Desktop//тест.xlsx')

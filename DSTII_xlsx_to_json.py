@@ -267,9 +267,23 @@ def convert_excel_to_json(excel_file_path):
         # Удаление строк, где все указанные колонки пустые
         df.dropna(subset='УИН', how='all', inplace=True)
 
+        
+        # Обработка листа "4 - ОИВ план"
+        if sheet_name == "4 - ОИВ план":
+            # Проверка наличия нужных колонок
+            if 'Плановый ввод по директивному графику' in df.columns and 'Плановый ввод по договору' in df.columns:
+                # Заполнение пустых значений в колонке "Плановый ввод по директивному графику"
+                df['Плановый ввод по директивному графику'] = df.apply(
+                    lambda row: row['Плановый ввод по договору'] if pd.isna(row['Плановый ввод по директивному графику']) else row['Плановый ввод по директивному графику'],
+                    axis=1
+                )
+
         # Удаление колонок с комментариями
         comment_columns = ['Комментарий', 'Комментарии', 'комментарий', 'комментарии']
         df.drop(columns=[col for col in comment_columns if col in df.columns], inplace=True)
+
+        # Удаление колонок с комментариями, титулами и годами титулов
+        df = df.loc[:, ~df.columns.str.contains('комментарий|титул|год титула', case=False)]
 
         # Преобразование значений в колонке "АИП (да/нет)" (если она существует)
         if 'АИП (да/нет)' in df.columns:
@@ -316,4 +330,4 @@ def convert_excel_to_json(excel_file_path):
         print(f'Лист "{sheet_name}" успешно конвертирован в файл "{json_file_path}".')
 
 # Пример использования
-convert_excel_to_json('E://Загрузки//Telegram Desktop//ДСТИИ_итоговый_перечень_для_ДБ_в3_1.xlsx')
+convert_excel_to_json('E://Загрузки//Telegram Desktop//ДСТИИ_итоговый_перечень_для_ДБ_04_03_2025_с_АИП_и_культурой.xlsx')

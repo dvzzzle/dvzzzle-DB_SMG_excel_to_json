@@ -27,6 +27,13 @@ def validate_data_type(value, expected_type):
 column_types = {
     "дата редактирования строки": "ДД.ММ.ГГГГ",
     "На какую дату актуализировано состояник ОКС": "ДД.ММ.ГГГГ",
+    "Дата ввода": "ДД.ММ.ГГГГ",
+    "План Начало": "ДД.ММ.ГГГГ", 
+    "Факт Начало": "ДД.ММ.ГГГГ",
+    "План Завершение": "ДД.ММ.ГГГГ",
+    "Факт Завершение": "ДД.ММ.ГГГГ",
+    "дата редактирования строки": "ДД.ММ.ГГГГ",
+    "На какую дату актуализировано состояник ОКС": "ДД.ММ.ГГГГ",
     "На какую дату актуализировано состояние ОКС": "ДД.ММ.ГГГГ",
     "ППМ (708-ПП/ППТ) (факт)": "ДД.ММ.ГГГГ",
     "ГПЗУ (факт)": "ДД.ММ.ГГГГ",
@@ -221,7 +228,7 @@ def convert_excel_to_json(excel_file_path):
                                 current_level[level2] = {}
                             current_level = current_level[level2]
 
-                        # Добавляем значение в третий уровень вложенности
+                        # Добавляем валидацию ключей level3 и их значений из словаря column_types
                         if level3:
                             value = row[col_idx]
                             if isinstance(value, (datetime, pd.Timestamp)):
@@ -230,6 +237,10 @@ def convert_excel_to_json(excel_file_path):
                                 value = value.strftime('%H:%M:%S')
                             elif pd.isna(value) or value == '':
                                 value = None
+
+                            # Валидация значения по типу из column_types
+                            if level3 in column_types:
+                                value = validate_data_type(value, column_types[level3])
 
                             # Добавляем значение в current_level
                             current_level[level3] = value
@@ -244,6 +255,9 @@ def convert_excel_to_json(excel_file_path):
                                         del record[level1]
                                     if level2 in current_level:
                                         del current_level[level2]
+
+                            if isinstance(value, str) and "не требуется" in value.strip().lower():
+                                del current_level[level3]
 
                             current_level = record  # Возвращаемся к корневому уровню
 
@@ -286,8 +300,6 @@ def convert_excel_to_json(excel_file_path):
                 if sheet_name in ["1 - СМГ ежедневный", "4 - ОИВ план", "5 - ОИВ факт"]:
                                 # Удаление строк, где все указанные колонки пустые
                                 df.dropna(subset='УИН', how='all', inplace=True)
-
-
 
                 # Конвертация DataFrame в словарь
                 data_dict = df.to_dict(orient='records')

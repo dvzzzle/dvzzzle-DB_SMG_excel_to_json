@@ -2,6 +2,7 @@ import pandas as pd
 import json
 import os
 from datetime import datetime, time
+from openpyxl import load_workbook
 
 def validate_data_type(value, expected_type):
     if expected_type == 'text':
@@ -184,51 +185,100 @@ def convert_excel_to_json(excel_file_path):
     for sheet_name in sheets_to_process:
         if sheet_name in xls.sheet_names:
             if sheet_name == "6 - ОИВ КТ":
-                # Обработка листа "6 - ОИВ КТ"
+                # Open the workbook in read-write mode
+                wb = load_workbook(filename=xls, data_only=True)
+                ws = wb[sheet_name]
+
+                # Создаем список для хранения заголовков с учетом объединенных ячеек
+                headers = [[None for _ in range(ws.max_column)] for _ in range(3)]
+
+                # Now you can access merged cell ranges
+                for merge in ws.merged_cells.ranges:
+                    min_row, min_col, max_row, max_col = merge.min_row, merge.min_col, merge.max_row, merge.max_col
+                    value = ws.cell(row=min_row, column=min_col).value
+
+                    # Fill all cells in the merged range with the value
+                    for row in range(min_row, max_row + 1):
+                        for col in range(min_col, max_col + 1):
+                            if row <= 3:  # We are only processing the first three rows (headers)
+                                headers[row - 1][col - 1] = value
+
+                # Заполняем оставшиеся ячейки (не объединенные)
+                for row in range(1, 4):  # Первые три строки
+                    for col in range(1, ws.max_column + 1):
+                        if headers[row - 1][col - 1] is None:  # Если ячейка не была заполнена объединением
+                            headers[row - 1][col - 1] = ws.cell(row=row, column=col).value
+
+                # Чтение данных с помощью pandas
                 df = pd.read_excel(xls, sheet_name=sheet_name, header=None)
-
-                # Получение заголовков из первых трех строк
-                headers = df.iloc[0:3].ffill(axis=1).fillna('').values.tolist()
-
-                # Пропуск четвертой строки
                 data_rows = df.iloc[4:].values.tolist()
 
+                # Находим индекс колонки "УИН" по названию
+                uin_col_idx = None
+                for col_idx, header in enumerate(headers[2]):  # Ищем в первой строке заголовков
+                    if header and header.strip().lower() == 'уин':  # Игнорируем пробелы и регистр
+                        uin_col_idx = col_idx
+                        break
+
+                # Если колонка "УИН" найдена, удаляем строки с пустыми ячейками, нулями или значением "не требуется"
+                if uin_col_idx is not None:
+                    data_rows = [
+                        row for row in data_rows
+                        if row[uin_col_idx] not in (None, "", 0) and not (isinstance(row[uin_col_idx], str) and "не требуется" in row[uin_col_idx].strip().lower())
+                    ]
+
                 # Удаление колонок, содержащих слово "комментарий" в любом регистре
-                columns_to_drop = [col_idx for col_idx in range(len(headers[0])) 
-                                  if 'комментарий||титул||год титула' in headers[0][col_idx].lower() or 
-                                     'комментарий||титул||год титула' in headers[1][col_idx].lower() or 
-                                     'комментарий||титул||год титула' in headers[2][col_idx].lower()]
-                headers = [[header for col_idx, header in enumerate(row) if col_idx not in columns_to_drop] 
-                           for row in headers]
-                data_rows = [[value for col_idx, value in enumerate(row) if col_idx not in columns_to_drop] 
-                             for row in data_rows]
+                columns_to_drop = [
+                    col_idx for col_idx in range(len(headers[0]))
+                    if (headers[0][col_idx] is not None and 'комментарий||титул||год титула' in headers[0][col_idx].lower()) or
+                    (headers[1][col_idx] is not None and 'комментарий||титул||год титула' in headers[1][col_idx].lower()) or
+                    (headers[2][col_idx] is not None and 'комментарий||титул||год титула' in headers[2][col_idx].lower())
+                ]
+
+                headers = [
+                    [header for col_idx, header in enumerate(row) if col_idx not in columns_to_drop]
+                    for row in headers
+                ]
+                data_rows = [
+                    [value for col_idx, value in enumerate(row) if col_idx not in columns_to_drop]
+                    for row in data_rows
+                ]
 
                 # Создание структуры JSON
                 data_dict = []
                 for row in data_rows:
                     record = {}
-                    current_level = record
                     for col_idx in range(len(row)):
                         # Получение уровней вложенности
-                        level1 = headers[0][col_idx].replace('\n', ' ')
-                        level2 = headers[1][col_idx].replace('\n', ' ')
-                        level3 = headers[2][col_idx].replace('\n', ' ')
+                        level1 = headers[0][col_idx].replace('\n', ' ') if headers[0][col_idx] else None
+                        level2 = headers[1][col_idx].replace('\n', ' ') if headers[1][col_idx] else None
+                        level3 = headers[2][col_idx].replace('\n', ' ') if headers[2][col_idx] else None
 
-                        # Если первая строка не пустая, создаем первый уровень вложенности
-                        if level1:
+                        # Инициализация current_level
+                        current_level = record  # По умолчанию current_level указывает на record
+
+                        # Если level1 пустой или отсутствует в данных, то level2 записывается без вложенности
+                        if not level1 or level1 not in headers[0]:
+                            if level2:
+                                level2 = f"КОНТРТОЧКА {level2}"  # Добавляем "КОНТРТОЧКА" к level2
+                                if level2 not in record:
+                                    record[level2] = {}
+                                current_level = record[level2]
+                        else:
+                            # Если level1 не пустой, создаем первый уровень вложенности
                             level1 = f"ОБЩКОНТРТОЧКА {level1}"
-                            if level1 not in current_level:
-                                current_level[level1] = {}
-                            current_level = current_level[level1]
+                            if level1 not in record:
+                                record[level1] = {}
+                            current_level = record[level1]
 
-                        # Если вторая строка не пустая, создаем второй уровень вложенности
-                        if level2:
-                            level2 = f"КОНТРТОЧКА {level2}"  # Добавляем "КОНТРТОЧКА" к level2
-                            if level2 not in current_level:
-                                current_level[level2] = {}
-                            current_level = current_level[level2]
+                            # Если level2 не пустой, создаем второй уровень вложенности
+                            if level2:
+                                level2 = f"КОНТРТОЧКА {level2}"  # Добавляем "КОНТРТОЧКА" к level2
+                                if level2 not in current_level:
+                                    current_level[level2] = {}
+                                current_level = current_level[level2]
 
-                        # Добавляем валидацию ключей level3 и их значений из словаря column_types
+                        # Добавляем значение level3, если оно есть
                         if level3:
                             value = row[col_idx]
                             if isinstance(value, (datetime, pd.Timestamp)):
@@ -246,7 +296,7 @@ def convert_excel_to_json(excel_file_path):
                             current_level[level3] = value
 
                             # Если level1 или level2 содержит "Корректировка", проверяем даты
-                            if "корректировка" in level1.lower() or "корректировка" in level2.lower():
+                            if (level1 is not None and "корректировка" in level1.lower()) or (level2 is not None and "корректировка" in level2.lower()):
                                 # Проверяем, что все четыре ячейки дат пустые
                                 date_keys = ["План Начало", "Факт Начало", "План Завершение", "Факт Завершение"]
                                 if all(current_level.get(key) is None for key in date_keys):
@@ -258,8 +308,11 @@ def convert_excel_to_json(excel_file_path):
 
                             if isinstance(value, str) and "не требуется" in value.strip().lower():
                                 del current_level[level3]
-
-                            current_level = record  # Возвращаемся к корневому уровню
+                                    # Удаление ключей "Титул" и "Год титула" из записи
+                    if "Титул" in record:
+                        del record["Титул"]
+                    if "Год титула" in record:
+                        del record["Год титула"]
 
                     data_dict.append(record)
 
@@ -331,6 +384,43 @@ def convert_excel_to_json(excel_file_path):
                     # Удаление строк, где все указанные колонки пустые
                     df.dropna(subset='УИН', how='all', inplace=True)
                 df.drop(df[df['УИН'] == 0].index, inplace=True)
+                
+                # Обработка листа "5 - ОИВ факт"
+                if sheet_name == "5 - ОИВ факт":
+                    # Список колонок, которые нужно переименовать
+                    columns_to_rename = {
+                        "Получение ГПЗУ (факт)": "ЭТАПРЕАЛИЗАЦИИ Получение ГПЗУ (факт)",
+                        "Получение ТУ от ресурсоснабжающих организаций (факт)": "ЭТАПРЕАЛИЗАЦИИ Получение ТУ от РСО (факт)",
+                        "Разработка и согласование АГР (факт)": "ЭТАПРЕАЛИЗАЦИИ Разработка и согласование АГР (факт)",
+                        "Разработка и получение положительного заключения экспертизы ПСД (факт)": "ЭТАПРЕАЛИЗАЦИИ Разработка экспертиза ПСД (факт)",
+                        "Получение РНС (факт)": "ЭТАПРЕАЛИЗАЦИИ Получение РНС (факт)",
+                        "Начато производство СМР": "ЭТАПРЕАЛИЗАЦИИ Производство СМР (факт)",
+                        "Технологическое присоединение (факт)": "ЭТАПРЕАЛИЗАЦИИ Технологическое присоединение (факт)",
+                        "Получение ЗОС (факт)": "ЭТАПРЕАЛИЗАЦИИ Получение ЗОС (факт)",
+                        "Получение РВ (факт)": "ЭТАПРЕАЛИЗАЦИИ Получение РВ (факт)"
+                    }
+                    
+                    # Переименование колонок
+                    df.rename(columns=columns_to_rename, inplace=True)
+                
+                # Обработка листа "4 - ОИВ план"
+                if sheet_name == "4 - ОИВ план":
+                    # Список колонок, которые нужно переименовать
+                    columns_to_rename = {
+                        "Получение ГПЗУ план": "ЭТАПРЕАЛИЗАЦИИ Получение ГПЗУ (план)",
+                        "Получение ТУ от ресурсоснабжающих организаций (план)": "ЭТАПРЕАЛИЗАЦИИ Получение ТУ от РСО (план)",
+                        "Разработка и согласование АГР (план)": "ЭТАПРЕАЛИЗАЦИИ Разработка и согласование АГР (план)",
+                        "Разработка и получение положительного заключения экспертизы ПСД (план)": "ЭТАПРЕАЛИЗАЦИИ Разработка экспертиза ПСД (план)",
+                        "Получение РНС (план)": "ЭТАПРЕАЛИЗАЦИИ Получение РНС (план)",
+                        "Производство СМР (план)": "ЭТАПРЕАЛИЗАЦИИ Производство СМР (план)",
+                        "Технологическое присоединение (план)": "ЭТАПРЕАЛИЗАЦИИ Технологическое присоединение (план)",
+                        "Получение ЗОС (план)": "ЭТАПРЕАЛИЗАЦИИ Получение ЗОС (план)",
+                        "Получение РВ (план)": "ЭТАПРЕАЛИЗАЦИИ Получение РВ (план)"
+                    }
+                    
+                    # Переименование колонок
+                    df.rename(columns=columns_to_rename, inplace=True)
+
 
                 # Конвертация DataFrame в словарь
                 data_dict = df.to_dict(orient='records')
@@ -540,7 +630,7 @@ def convert_excel_to_json(excel_file_path):
                             continue  # Пропустить добавление этого ключа в new_record
                         elif isinstance(value, str) and value.strip().lower() == "данных не будет":
                             continue
-                                # Проверяем тип данных и заменяем на null, если не соответствует
+                        # Проверяем тип данных и заменяем на null, если не соответствует
                         elif key in column_types:
                             value = validate_data_type(value, column_types[key])
 
@@ -549,35 +639,37 @@ def convert_excel_to_json(excel_file_path):
                             new_record[f'СТРЭТАП {key.strip()}'] = value
                         else:
                             # Добавление "КОНТРТОЧКА" к нужным ключам и удаление оригинальных ключей
-                            if any(phrase in key.strip() for phrase in [
-                                "ППМ (708-ПП/ППТ) (факт)",
-                                "ГПЗУ (факт)",
-                                "Разработка и согласование ТЗ (факт)",
-                                "Разработка и согласование квартирографии (факт)",
-                                "Проведение конкрусных процедур и подписание договора (факт)",
-                                "Разработка и согласование АПР (факт)",
-                                "Разработка и согласование АГР (факт)",
-                                "Заключение СКП (факт)",
-                                "Договор ТП (факт)",
-                                "Получение заключения МГЭ (факт)",
-                                "Отселение домов в пятне застройки (факт)",
-                                "Вынос инженерных систем из пятна застройки (факт)",
-                                "Снос домов в пятне застройки (факт)",
-                                "Снос нежилых объектов в пятне застройки (факт)",
-                                "Получение разрешения на строительство (факт)",
-                                "Устройство подземной части (факт)",
-                                "Устройство надземной части (факт)",
-                                "Устройство инженерных систем (факт)",
-                                "Отделочные работы (факт)",
-                                "Благоустройство территории (факт)",
-                                "Получение ЗОС (факт)",
-                                "Получение РВ (факт)",
-                                "Постановка на кадастровый учет (факт)",
-                                "Передача под заселение (факт)"
-                            ]):
-                                new_record[f'КОНТРТОЧКА {key.strip()}'] = value
-                            else:
-                                new_record[key] = value
+                            if sheet_name != "5 - ОИВ факт":
+                                phrases = [
+                                    "ППМ (708-ПП/ППТ) (факт)",
+                                    "ГПЗУ (факт)",
+                                    "Разработка и согласование ТЗ (факт)",
+                                    "Разработка и согласование квартирографии (факт)",
+                                    "Проведение конкрусных процедур и подписание договора (факт)",
+                                    "Разработка и согласование АПР (факт)",
+                                    "Разработка и согласование АГР (факт)",
+                                    "Заключение СКП (факт)",
+                                    "Договор ТП (факт)",
+                                    "Получение заключения МГЭ (факт)",
+                                    "Отселение домов в пятне застройки (факт)",
+                                    "Вынос инженерных систем из пятна застройки (факт)",
+                                    "Снос домов в пятне застройки (факт)",
+                                    "Снос нежилых объектов в пятне застройки (факт)",
+                                    "Получение разрешения на строительство (факт)",
+                                    "Устройство подземной части (факт)",
+                                    "Устройство надземной части (факт)",
+                                    "Устройство инженерных систем (факт)",
+                                    "Отделочные работы (факт)",
+                                    "Благоустройство территории (факт)",
+                                    "Получение ЗОС (факт)",
+                                    "Получение РВ (факт)",
+                                    "Постановка на кадастровый учет (факт)",
+                                    "Передача под заселение (факт)",
+                                ]
+                                if any(phrase in key.strip() for phrase in phrases):
+                                    new_record[f'КОНТРТОЧКА {key.strip()}'] = value
+                                else:
+                                    new_record[key] = value
 
                         # Если значение равно "не требуется" или null, удаляем ключ
                         if "корректировка" in key.lower() and (value == "не требуется" or value is None):
@@ -586,6 +678,12 @@ def convert_excel_to_json(excel_file_path):
                     # Замена старого словаря новым
                     record.clear()
                     record.update(new_record)
+
+                # Удаление ключей, содержащих "КОНТРТОЧКА"
+                for record in data_dict:
+                    keys_to_remove = [key for key in record if "КОНТРТОЧКА" in key]
+                    for key in keys_to_remove:
+                        del record[key]
 
                 # Формирование пути для JSON-файла
                 json_file_path = os.path.join(file_directory, f'{sheet_name}.json')
@@ -597,4 +695,4 @@ def convert_excel_to_json(excel_file_path):
                 print(f'Лист "{sheet_name}" успешно конвертирован в файл "{json_file_path}".')
 
 # Пример использования
-convert_excel_to_json('E://Загрузки//Telegram Desktop//МФР_2 объекта 12.03 (2).xlsx')
+convert_excel_to_json('E://Загрузки//Telegram Desktop//Текущая обработка//МФР_для_ДБ_от_17.03.xlsx')

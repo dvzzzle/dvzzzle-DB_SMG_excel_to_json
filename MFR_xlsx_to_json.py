@@ -188,10 +188,9 @@ def convert_excel_to_json(excel_file_path):
                 # Open the workbook in read-write mode
                 wb = load_workbook(filename=xls, data_only=True)
                 ws = wb[sheet_name]
-
+                   
                 # Создаем список для хранения заголовков с учетом объединенных ячеек
                 headers = [[None for _ in range(ws.max_column)] for _ in range(3)]
-
                 # Now you can access merged cell ranges
                 for merge in ws.merged_cells.ranges:
                     min_row, min_col, max_row, max_col = merge.min_row, merge.min_col, merge.max_row, merge.max_col
@@ -224,7 +223,7 @@ def convert_excel_to_json(excel_file_path):
                 if uin_col_idx is not None:
                     data_rows = [
                         row for row in data_rows
-                        if row[uin_col_idx] not in (None, "", 0) and not (isinstance(row[uin_col_idx], str) and "не требуется" in row[uin_col_idx].strip().lower())
+                        if row[uin_col_idx] not in (None, "", 0)
                     ]
 
                 # Удаление колонок, содержащих слово "комментарий" в любом регистре
@@ -292,23 +291,32 @@ def convert_excel_to_json(excel_file_path):
                             if level3 in column_types:
                                 value = validate_data_type(value, column_types[level3])
 
+                            # Если значение level3 равно "не требуется", удаляем level2 и level3
+                            if isinstance(value, str) and value.strip().lower() == "не требуется":
+                                if level1 in record and level2 in record[level1]:
+                                    del record[level1][level2]  # Удаляем level2
+                                continue  # Пропускаем добавление level3
+
                             # Добавляем значение в current_level
                             current_level[level3] = value
 
-                            # Если level1 или level2 содержит "Корректировка", проверяем даты
-                            if (level1 is not None and "корректировка" in level1.lower()) or (level2 is not None and "корректировка" in level2.lower()):
-                                # Проверяем, что все четыре ячейки дат пустые
-                                date_keys = ["План Начало", "Факт Начало", "План Завершение", "Факт Завершение"]
-                                if all(current_level.get(key) is None for key in date_keys):
-                                    # Удаляем текущий level1 и level2, если они существуют
-                                    if level1 in record:
-                                        del record[level1]
-                                    if level2 in current_level:
-                                        del current_level[level2]
+                    # Постобработка: удаляем level2, если все его level3 равны null
+                    for level1_key in list(record.keys()):  # Используем list для безопасного удаления
+                        if isinstance(record[level1_key], dict):  # Проверяем, что level1_key ведет на словарь
+                            for level2_key in list(record[level1_key].keys()):  # Безопасное удаление
+                                if isinstance(record[level1_key][level2_key], dict):  # Проверяем, что level2_key ведет на словарь
+                                    # Проверяем, все ли level3 равны null
+                                    if all(value is None for value in record[level1_key][level2_key].values()):
+                                        del record[level1_key][level2_key]  # Удаляем level2, если все level3 равны null        
 
-                            if isinstance(value, str) and "не требуется" in value.strip().lower():
-                                del current_level[level3]
-                                    # Удаление ключей "Титул" и "Год титула" из записи
+                    # Постобработка: удаляем level1, если все его level2 равны null
+                    for level1_key in list(record.keys()):  # Используем list для безопасного удаления
+                        if isinstance(record[level1_key], dict):  # Проверяем, что level1_key ведет на словарь
+                            if all(value is None for value in record[level1_key].values()):
+                                del record[level1_key]  # Удаляем level1, если все его level2 равны null
+
+                    
+                    # Удаление ключей "Титул" и "Год титула" из записи
                     if "Титул" in record:
                         del record["Титул"]
                     if "Год титула" in record:
@@ -374,16 +382,17 @@ def convert_excel_to_json(excel_file_path):
                     columns_to_drop = [col.strip() for col in columns_to_drop if col.strip() in df.columns]
                     df.drop(columns=columns_to_drop, inplace=True)
 
+                # Проверяем, есть ли колонка "УИН" в DataFrame
+                if 'УИН' in df.columns:
+                    # Удаляем строки, где значение в колонке "УИН" пустое или равно "0"
+                    df = df[(df['УИН'].notna()) & (df['УИН'] != "0") & (df['УИН'] != 0)]
+                else:
+                    print(f'Колонка "УИН" отсутствует в листе "{sheet_name}".')
+
                 # Удаление указанных колонок в листах "1 - СМГ ежедневный", "4 - ОИВ план" и "5 - ОИВ факт"
                 if sheet_name in ["1 - СМГ ежедневный", "4 - ОИВ план", "5 - ОИВ факт"]:
                     columns_to_drop = ["АИП (да/нет)", "Дата включения в АИП", "Сумма по АИП, млрд руб", "Аванс, млрд руб"]
                     df.drop(columns=[col for col in columns_to_drop if col in df.columns], inplace=True)
-
-                # Удаление строк, где все три колонки 'УИН', 'Мастер код ФР', 'Мастер код ДС' пустые
-                if sheet_name in ["1 - СМГ ежедневный", "4 - ОИВ план", "5 - ОИВ факт"]:
-                    # Удаление строк, где все указанные колонки пустые
-                    df.dropna(subset='УИН', how='all', inplace=True)
-                df.drop(df[df['УИН'] == 0].index, inplace=True)
                 
                 # Обработка листа "5 - ОИВ факт"
                 if sheet_name == "5 - ОИВ факт":
@@ -639,7 +648,7 @@ def convert_excel_to_json(excel_file_path):
                             new_record[f'СТРЭТАП {key.strip()}'] = value
                         else:
                             # Добавление "КОНТРТОЧКА" к нужным ключам и удаление оригинальных ключей
-                            if sheet_name != "5 - ОИВ факт":
+                            if sheet_name != "5 - ОИВ факт" and sheet_name != "6 - ОИВ КТ":
                                 phrases = [
                                     "ППМ (708-ПП/ППТ) (факт)",
                                     "ГПЗУ (факт)",
@@ -669,7 +678,9 @@ def convert_excel_to_json(excel_file_path):
                                 if any(phrase in key.strip() for phrase in phrases):
                                     new_record[f'КОНТРТОЧКА {key.strip()}'] = value
                                 else:
-                                    new_record[key] = value
+                                    new_record[key] = value  # Добавляем ключ без изменений
+                            else:
+                                new_record[key] = value  # Добавляем ключ без изменений для листа "5 - ОИВ факт"
 
                         # Если значение равно "не требуется" или null, удаляем ключ
                         if "корректировка" in key.lower() and (value == "не требуется" or value is None):
@@ -695,4 +706,4 @@ def convert_excel_to_json(excel_file_path):
                 print(f'Лист "{sheet_name}" успешно конвертирован в файл "{json_file_path}".')
 
 # Пример использования
-convert_excel_to_json('E://Загрузки//Telegram Desktop//Текущая обработка//МФР_для_ДБ_от_17.03.xlsx')
+convert_excel_to_json('E://Загрузки//Telegram Desktop//Текущая обработка//МФР_для_ДБ_от_18.03.xlsx')

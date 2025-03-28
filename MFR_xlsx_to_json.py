@@ -419,6 +419,7 @@ def convert_excel_to_json(excel_file_path):
                 
                 # Обработка листа "5 - ОИВ факт"
                 if sheet_name == "5 - ОИВ факт":
+                    df['ИНН Генподрядчика'] = df['ИНН Генподрядчика'].fillna(0).astype(int)
                     # Список колонок, которые нужно переименовать
                     columns_to_rename = {
                         "Получение ГПЗУ (факт)": "ЭТАПРЕАЛИЗАЦИИ ГПЗУ (факт)",
@@ -437,6 +438,7 @@ def convert_excel_to_json(excel_file_path):
                 
                 # Обработка листа "4 - ОИВ план"
                 if sheet_name == "4 - ОИВ план":
+                    df['ИНН Генподрядчика'] = df['ИНН Генподрядчика'].fillna(0).astype(int)
                     # Список колонок, которые нужно переименовать
                     columns_to_rename = {
                         "Получение ГПЗУ план": "ЭТАПРЕАЛИЗАЦИИ ГПЗУ (план)",
@@ -728,4 +730,4 @@ def convert_excel_to_json(excel_file_path):
                 print(f'Лист "{sheet_name}" успешно конвертирован в файл "{json_file_path}".')
 
 # Пример использования
-convert_excel_to_json('E://Загрузки//Telegram Desktop//Текущая обработка//МФР_для_ДБ_2_объекта_тест пролив.xlsx')
+convert_excel_to_json('E://Загрузки//Telegram Desktop//Текущая обработка//МФР_для_ДБ_2024_2027_год_тест_пролив_сорт.xlsx')

@@ -166,7 +166,7 @@ def convert_excel_to_json(excel_file_path):
     directory = os.path.dirname(excel_file_path)
 
     # Проверка наличия папки ДСТИИ и создание, если она не существует
-    file_directory = os.path.join(directory, 'ДГП')
+    file_directory = os.path.join(directory, 'ДГС_склиф')
     if not os.path.exists(file_directory):
         os.makedirs(file_directory)
 
@@ -372,7 +372,7 @@ def convert_excel_to_json(excel_file_path):
 
                 # Удаление указанных колонок в листах "1 - СМГ ежедневный", "4 - ОИВ план" и "5 - ОИВ факт"
                 if sheet_name in ["1 - СМГ ежедневный", "4 - ОИВ план", "5 - ОИВ факт"]:
-                    columns_to_drop = ["АИП (да/нет)", "Дата включения в АИП", "Сумма по АИП, млрд руб", "Аванс, млрд руб", 
+                    columns_to_drop = [ 
                         "КОЛ-ВО КОРПУСОВ (плановая дата начала)",
                         "КОЛ-ВО КОРПУСОВ (плановая дата завершения)",
                         "КОЛ-ВО ЭТАЖЕЙ (плановая дата начала)",
@@ -391,11 +391,8 @@ def convert_excel_to_json(excel_file_path):
                         "КОЛ-ВО ЭТАЖЕЙ (% выполнения, факт)"]
                     df.drop(columns=[col for col in columns_to_drop if col in df.columns], inplace=True)
 
-
-
                 # Удаление указанных колонок для листа "1 - СМГ ежедневный"
                 if sheet_name == "1 - СМГ ежедневный":
-
                     columns_to_drop = [
                         "ОЦЕНКА СТРОИТЕЛЬНОГО ГОРОДКА",
                         "ПАСПОРТ ОБЪЕКТА (наличие)",
@@ -430,11 +427,6 @@ def convert_excel_to_json(excel_file_path):
                     df = df[(df['УИН'].notna()) & (df['УИН'] != "0") & (df['УИН'] != 0)]
                 else:
                     print(f'Колонка "УИН" отсутствует в листе "{sheet_name}".')
-
-                # Удаление указанных колонок в листах "1 - СМГ ежедневный", "4 - ОИВ план" и "5 - ОИВ факт"
-                if sheet_name in ["1 - СМГ ежедневный", "4 - ОИВ план", "5 - ОИВ факт"]:
-                    columns_to_drop = ["АИП (да/нет)", "Дата включения в АИП", "Сумма по АИП, млрд руб", "Аванс, млрд руб"]
-                    df.drop(columns=[col for col in columns_to_drop if col in df.columns], inplace=True)
                 
                 # Обработка листа "5 - ОИВ факт"
                 if sheet_name == "5 - ОИВ факт":
@@ -458,8 +450,6 @@ def convert_excel_to_json(excel_file_path):
                     df.rename(columns=columns_to_rename, inplace=True)
                     columns_to_drop = ["Дата контрактации", "Сумма по контракту, млрд руб"]
                     df.drop(columns=columns_to_drop, inplace=True)
-                    # Удаляем лишние пробелы в названиях колонок
-                    df.columns = df.columns.str.strip()
                 
                 # Обработка листа "4 - ОИВ план"
                 if sheet_name == "4 - ОИВ план":
@@ -467,7 +457,6 @@ def convert_excel_to_json(excel_file_path):
                     df['Этажность'] = df['Этажность'].fillna(0).astype('Int64').replace(0, None)
                     df = df.replace(r'^\s*$', None, regex=True)
                     # Список колонок, которые нужно переименовать
-                    # Находим позицию колонки "Этажность"
                     columns_to_rename = {
                         "Получение ГПЗУ план": "ЭТАПРЕАЛИЗАЦИИ ГПЗУ (план)",
                         "Получение ТУ от ресурсоснабжающих организаций (план)": "ЭТАПРЕАЛИЗАЦИИ ТУ от РСО (план)",
@@ -814,4 +803,4 @@ def convert_excel_to_json(excel_file_path):
                 print(f'Лист "{sheet_name}" успешно конвертирован в файл "{json_file_path}".')
 
 # Пример использования
-convert_excel_to_json('E://Загрузки//Telegram Desktop//Текущая обработка//МФР_2 объекта 12.03 в2.xlsx')
+convert_excel_to_json('E://Загрузки//Telegram Desktop//Текущая обработка//ДГС_для_ДБ_новый шаблон склиф 1 (2).xlsx')

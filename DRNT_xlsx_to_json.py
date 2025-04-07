@@ -446,9 +446,30 @@ def convert_excel_to_json(excel_file_path):
                         lambda row: row['Плановый ввод по договору'] if pd.isna(row['Плановый ввод по директивному графику']) else row['Плановый ввод по директивному графику'],
                         axis=1
                     )
+                # Добавление колонок из листа "5 - ОИВ факт"
+                df_fact = pd.read_excel(xls, sheet_name="5 - ОИВ факт", header=1, skiprows=[2])
+                copy_columns = ["Дата контрактации", "Сумма по контракту, млрд руб"]
+
+                # Убедитесь, что колонки существуют в листе "5 - ОИВ факт"
+                if all(column in df_fact.columns for column in copy_columns):
+                    # Добавление колонок в DataFrame "4 - ОИВ план"
+                    for column in copy_columns:
+                        df[column] = df_fact[column]
+
+                    # Перемещение колонок после "Этажность"
+                    cols = list(df.columns)
+                    idx_etazhnost = cols.index("Этажность")
+                    for column in copy_columns:
+                        cols.insert(idx_etazhnost + 1, cols.pop(cols.index(column)))
+                    df = df[cols]
+
 
             # Обработка листа "5 - ОИВ факт"
             if sheet_name == "5 - ОИВ факт" or sheet_name == '1 - СМГ ежедневный':
+                df['ИНН Генподрядчика'] = df['ИНН Генподрядчика'].fillna(0).astype('Int64').replace(0, None)
+                df['ИНН Застройщика'] = df['ИНН Застройщика'].fillna(0).astype('Int64').replace(0, None)
+                df['ИНН Заказчика'] = df['ИНН Заказчика'].fillna(0).astype('Int64').replace(0, None)
+                df = df.replace(r'^\s*$', None, regex=True)
                 # Список колонок, которые нужно переименовать
                 columns_to_rename = {
                     "Получение ГПЗУ (факт)": "ЭТАПРЕАЛИЗАЦИИ ГПЗУ (факт)",
@@ -468,6 +489,10 @@ def convert_excel_to_json(excel_file_path):
             
             # Обработка листа "4 - ОИВ план"
             if sheet_name == "4 - ОИВ план":
+                df['ИНН Генподрядчика'] = df['ИНН Генподрядчика'].fillna(0).astype('Int64').replace(0, None)
+                df['ИНН Застройщика'] = df['ИНН Застройщика'].fillna(0).astype('Int64').replace(0, None)
+                df['ИНН Заказчика'] = df['ИНН Заказчика'].fillna(0).astype('Int64').replace(0, None)
+                df = df.replace(r'^\s*$', None, regex=True)
                 # Список колонок, которые нужно переименовать
                 columns_to_rename = {
                     "Получение ГПЗУ план": "ЭТАПРЕАЛИЗАЦИИ ГПЗУ (план)",
@@ -480,7 +505,30 @@ def convert_excel_to_json(excel_file_path):
                     "Получение ЗОС (план)": "ЭТАПРЕАЛИЗАЦИИ ЗОС (план)",
                     "Получение РВ (план)": "ЭТАПРЕАЛИЗАЦИИ РВ (план)"
                 }
+                df.rename(columns=columns_to_rename, inplace=True)
 
+
+    
+
+            # Удаление указанных колонок на листах "5 - ОИВ факт" и "1 - СМГ ежедневный"
+            if sheet_name in ["5 - ОИВ факт", "1 - СМГ ежедневный"]:
+                columns_to_exclude = [
+                    "Мастер код ФР", "Мастер код ДС", "link", "ФНО", "Наименование",
+                    "Наименование ЖК (коммерческое наименование)", "Краткое наименование",
+                    "ФНО для аналитики", "Округ", "Район", "Источник финансирования",
+                    "Статус ОКС", "Адрес объекта", "Признак реновации (да/нет)",
+                    "ИНН Застройщика", "Застройщик", "ИНН Заказчика", "Заказчик",
+                    "ИНН Генподрядчика", "Генподрядчик", "Общая площадь, м2",
+                    "Протяженность", "Этажность",  "АИП (да/нет)", "Дата включения в АИП",
+                    "Сумма по АИП, млрд руб", "Аванс, млрд руб"
+                ]
+                # Удаляем только те колонки, которые существуют в DataFrame
+                columns_to_exclude = [col for col in columns_to_exclude if col in df.columns]
+                df.drop(columns=columns_to_exclude, inplace=True)
+                
+                if sheet_name == "5 - ОИВ факт":
+                    columns_to_drop = ["Дата контрактации", "Сумма по контракту, млрд руб"]
+                    df.drop(columns=columns_to_drop, inplace=True)
 
             # Удаление колонок с комментариями, титулами и годами титулов
             df = df.loc[:, ~df.columns.str.contains('комментарий|титул|год титула', case=False)]
@@ -542,7 +590,8 @@ def convert_excel_to_json(excel_file_path):
                     'true': 'да',
                     'false': 'нет',
                     'да': 'да',
-                    'нет': 'нет'
+                    'нет': 'нет',
+                    'nan': None
                 })
 
             # Удаление строк, где все указанные колонки пустые
@@ -578,7 +627,7 @@ def convert_excel_to_json(excel_file_path):
                             'Получение ГПЗУ', 'Получение ТУ от РСО',
                             'Разработка и согласование АГР', 'Разработка и экспертиза ПСД',
                             'Получение РНС', 'Производство СМР', 'Технологическое присоединение',
-                            'Получение ЗОС', 'Получение РВ', 'СТРОИТЕЛЬНАЯ ГОТОВНОСТЬ'
+                            'Получение ЗОС', 'Получение РВ'
                         ]):
                             new_record[f'ЭТАПРЕАЛИЗАЦИИ {key.strip()}'] = value
                         else:
@@ -599,4 +648,4 @@ def convert_excel_to_json(excel_file_path):
             print(f'Лист "{sheet_name}" успешно конвертирован в файл "{json_file_path}".')
 
 # Пример использования
-convert_excel_to_json('E://Загрузки//Telegram Desktop//Текущая обработка//ДРНТ_объект_от_12.03.xlsx')
+convert_excel_to_json('E://Загрузки//Telegram Desktop//Текущая обработка//ДРНТ_для_ДБ_2024_2027_год_31.03.2025_в3.xlsx')

@@ -449,7 +449,7 @@ def convert_excel_to_json(excel_file_path):
                     )
 
                 # Добавление колонок из листа "5 - ОИВ факт"
-                df_fact = pd.read_excel(xls, sheet_name="5 - ОИВ факт", header=1, skiprows=[2])
+                df_fact = pd.read_excel(xls, sheet_name="5 - ОИВ факт", header=1, skiprows=[2], decimal=',')
                 copy_columns = ["Дата контрактации", "Сумма по контракту, млрд руб"]
 
                 # Убедитесь, что колонки существуют в листе "5 - ОИВ факт"
@@ -563,6 +563,7 @@ def convert_excel_to_json(excel_file_path):
             if sheet_name == "4 - ОИВ план":
                 df['ИНН Генподрядчика'] = df['ИНН Генподрядчика'].fillna(0).astype('Int64').replace(0, None)
                 df = df.replace(r'^\s*$', None, regex=True)
+                df["Год ввода"] = df["Год ввода (АИП)"]
                 # Список колонок, которые нужно переименовать
                 columns_to_rename = {
                     "Получение ГПЗУ план": "ЭТАПРЕАЛИЗАЦИИ ГПЗУ (план)",
@@ -650,4 +651,4 @@ def convert_excel_to_json(excel_file_path):
             print(f'Лист "{sheet_name}" успешно конвертирован в файл "{json_file_path}".')
 
 # Пример использования
-convert_excel_to_json('E://Загрузки//Telegram Desktop//Текущая обработка/ДГС_для_ДБ_2024_2027_год_31_03_2025_без_склифа.xlsx')
+convert_excel_to_json('E://Загрузки//Telegram Desktop//Текущая обработка/ДГС_для_ДБ_2024_2027_год_тест_пролив_СМГ_с_наименованиями (2).xlsx')

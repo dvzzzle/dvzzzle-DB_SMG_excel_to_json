@@ -351,7 +351,7 @@ def convert_excel_to_json(excel_file_path):
                             axis=1
                         )
                     # Добавление колонок из листа "5 - ОИВ факт"
-                    df_fact = pd.read_excel(xls, sheet_name="5 - ОИВ факт", header=1, skiprows=[2])
+                    df_fact = pd.read_excel(xls, sheet_name="5 - ОИВ факт", header=1, skiprows=[2], decimal=',')
                     copy_columns = ["Дата контрактации", "Сумма по контракту, млрд руб"]
 
                     # Убедитесь, что колонки существуют в листе "5 - ОИВ факт"
@@ -466,6 +466,7 @@ def convert_excel_to_json(excel_file_path):
                     df['ИНН Генподрядчика'] = df['ИНН Генподрядчика'].fillna(0).astype('Int64').replace(0, None)
                     df['Этажность'] = df['Этажность'].fillna(0).astype('Int64').replace(0, None)
                     df = df.replace(r'^\s*$', None, regex=True)
+
                     # Список колонок, которые нужно переименовать
                     # Находим позицию колонки "Этажность"
                     columns_to_rename = {
@@ -814,4 +815,4 @@ def convert_excel_to_json(excel_file_path):
                 print(f'Лист "{sheet_name}" успешно конвертирован в файл "{json_file_path}".')
 
 # Пример использования
-convert_excel_to_json('E://Загрузки//Telegram Desktop//Текущая обработка//МФР_2 объекта 12.03 в2.xlsx')
+convert_excel_to_json('E://Загрузки//Telegram Desktop//Текущая обработка//МФР_для_ДБ_2024_2027_год_31.03.2025_в3.xlsx')

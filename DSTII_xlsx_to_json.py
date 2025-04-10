@@ -447,8 +447,9 @@ def convert_excel_to_json(excel_file_path):
                         axis=1
                     )
                 # Добавление колонок из листа "5 - ОИВ факт"
-                df_fact = pd.read_excel(xls, sheet_name="5 - ОИВ факт", header=1, skiprows=[2])
+                df_fact = pd.read_excel(xls, sheet_name="5 - ОИВ факт", header=1, skiprows=[2], decimal=',')
                 copy_columns = ["Дата контрактации", "Сумма по контракту, млрд руб"]
+
 
                 # Убедитесь, что колонки существуют в листе "5 - ОИВ факт"
                 if all(column in df_fact.columns for column in copy_columns):
@@ -462,6 +463,7 @@ def convert_excel_to_json(excel_file_path):
                     for column in copy_columns:
                         cols.insert(idx_etazhnost + 1, cols.pop(cols.index(column)))
                     df = df[cols]
+                df["Сумма по контракту, млрд руб"] = pd.to_numeric(df["Сумма по контракту, млрд руб"], errors='coerce').astype(float)
 
             # Обработка листа "5 - ОИВ факт"
             if sheet_name == "5 - ОИВ факт" or sheet_name == '1 - СМГ ежедневный':
@@ -499,6 +501,7 @@ def convert_excel_to_json(excel_file_path):
                     # Пытаемся преобразовать в int, ошибки → NaN
                     df["ИНН Генподрядчика"] = pd.to_numeric(df["ИНН Генподрядчика"], errors='coerce').astype('Int64')  # `Int64` поддерживает NaN
                 df = df.replace(r'^\s*$', None, regex=True)
+                df["Год ввода"] = df["Год ввода (АИП)"]
                 # Список колонок, которые нужно переименовать
                 columns_to_rename = {
                     "Получение ГПЗУ план": "ЭТАПРЕАЛИЗАЦИИ ГПЗУ (план)",

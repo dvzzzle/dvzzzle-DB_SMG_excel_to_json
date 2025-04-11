@@ -649,4 +649,4 @@ def convert_excel_to_json(excel_file_path):
             print(f'Лист "{sheet_name}" успешно конвертирован в файл "{json_file_path}".')
 
 # Пример использования
-convert_excel_to_json('E://Загрузки//Telegram Desktop//Текущая обработка//ДРНТ_для_ДБ_2024_2027_год_31.03.2025_в3.xlsx')
+convert_excel_to_json('E://Загрузки//Telegram Desktop//Текущая обработка//ДРНТ_для_ДБ_2024_2027_год_тест_пролив_СМГ_с_наименованиями.xlsx')
